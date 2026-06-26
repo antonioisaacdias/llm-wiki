@@ -1,6 +1,11 @@
 package note
 
-import "testing"
+import (
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestParse(t *testing.T) {
 	raw := []byte(`---
@@ -46,5 +51,26 @@ func TestParseNoFrontmatter(t *testing.T) {
 	_, err := Parse([]byte("just a body, no frontmatter"))
 	if err == nil {
 		t.Fatal("expected error for missing frontmatter")
+	}
+}
+
+func TestNoteJSONKeysSnakeCase(t *testing.T) {
+	n := Note{ID: "x", Description: "d", Body: "b", SupersededBy: "y"}
+	out, err := json.Marshal(n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	for _, key := range []string{`"id"`, `"description"`, `"body"`, `"superseded_by"`} {
+		if !strings.Contains(s, key) {
+			t.Errorf("missing %s in %s", key, s)
+		}
+	}
+}
+
+func TestParseNoFrontmatterSentinel(t *testing.T) {
+	_, err := Parse([]byte("no frontmatter here"))
+	if !errors.Is(err, ErrNoFrontmatter) {
+		t.Fatalf("got %v, want ErrNoFrontmatter", err)
 	}
 }

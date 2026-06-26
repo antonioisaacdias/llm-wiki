@@ -9,16 +9,16 @@ import (
 )
 
 type Note struct {
-	ID           string   `yaml:"id"`
-	Type         string   `yaml:"type"`
-	Description  string   `yaml:"description"`
-	Tags         []string `yaml:"tags"`
-	Status       string   `yaml:"status"`
-	SupersededBy string   `yaml:"superseded_by"`
-	Source       string   `yaml:"source"`
-	Created      string   `yaml:"created"`
-	Modified     string   `yaml:"modified"`
-	Body         string   `yaml:"-"`
+	ID           string   `yaml:"id" json:"id"`
+	Type         string   `yaml:"type" json:"type"`
+	Description  string   `yaml:"description" json:"description"`
+	Tags         []string `yaml:"tags" json:"tags"`
+	Status       string   `yaml:"status" json:"status"`
+	SupersededBy string   `yaml:"superseded_by" json:"superseded_by"`
+	Source       string   `yaml:"source" json:"source"`
+	Created      string   `yaml:"created" json:"created"`
+	Modified     string   `yaml:"modified" json:"modified"`
+	Body         string   `yaml:"-" json:"body"`
 }
 
 type Stub struct {
@@ -28,11 +28,13 @@ type Stub struct {
 	Score       float64 `json:"score"`
 }
 
+var ErrNoFrontmatter = errors.New("note: missing frontmatter")
+
 var sep = []byte("---")
 
 func Parse(raw []byte) (Note, error) {
 	if !bytes.HasPrefix(raw, sep) {
-		return Note{}, errors.New("note: missing frontmatter")
+		return Note{}, ErrNoFrontmatter
 	}
 	rest := raw[len(sep):]
 	end := bytes.Index(rest, append([]byte("\n"), sep...))
