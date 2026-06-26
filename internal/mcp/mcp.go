@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -38,6 +39,13 @@ func New(s httpapi.Searcher) *mcp.Server {
 	}, getHandler(s))
 
 	return server
+}
+
+func Handler(s httpapi.Searcher) http.Handler {
+	server := New(s)
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return server
+	}, nil)
 }
 
 func searchHandler(s httpapi.Searcher) mcp.ToolHandlerFor[searchInput, searchOutput] {

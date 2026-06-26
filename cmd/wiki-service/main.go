@@ -47,11 +47,17 @@ func run() error {
 	}
 	slog.Info("indexed vault", "notes", len(notes), "dir", vaultDir)
 
+	root := http.NewServeMux()
+	mcpHandler := wikimcp.Handler(store)
+	root.Handle("/mcp", mcpHandler)
+	root.Handle("/mcp/", mcpHandler)
+	root.Handle("/", http.TimeoutHandler(httpapi.New(store), 15*time.Second, "request timeout"))
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      httpapi.New(store),
+		Handler:      root,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
 	}
 
