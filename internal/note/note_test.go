@@ -74,3 +74,21 @@ func TestParseNoFrontmatterSentinel(t *testing.T) {
 		t.Fatalf("got %v, want ErrNoFrontmatter", err)
 	}
 }
+
+func TestSerializeRoundTrip(t *testing.T) {
+	in := Note{ID: "x", Type: "fact", Description: "d: with colon", Tags: []string{"a", "b"}, Status: "active", Source: "claude-code", Body: "the body\n"}
+	raw, err := Serialize(in)
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+	out, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if out.ID != in.ID || out.Type != in.Type || out.Description != in.Description || out.Status != in.Status || out.Body != in.Body {
+		t.Fatalf("round-trip mismatch:\nin=%+v\nout=%+v", in, out)
+	}
+	if len(out.Tags) != 2 || out.Tags[0] != "a" {
+		t.Errorf("tags = %v", out.Tags)
+	}
+}
