@@ -16,6 +16,7 @@ import (
 	"github.com/antonioisaacdias/llm-wiki/internal/index"
 	wikimcp "github.com/antonioisaacdias/llm-wiki/internal/mcp"
 	"github.com/antonioisaacdias/llm-wiki/internal/vault"
+	"github.com/antonioisaacdias/llm-wiki/internal/writer"
 )
 
 func main() {
@@ -32,26 +33,41 @@ func run() error {
 	}
 	dbPath := envOr("WIKI_DB", ":memory:")
 	addr := envOr("WIKI_HTTP_ADDR", ":8080")
+	token := os.Getenv("WIKI_WRITE_TOKEN")
+	push := os.Getenv("WIKI_GIT_PUSH") == "1"
 
-	notes, err := vault.Load(vaultDir)
-	if err != nil {
-		return err
-	}
 	store, err := index.Open(dbPath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	if err := store.Build(context.Background(), notes); err != nil {
+
+	reindex := func(ctx context.Context) error {
+		notes, err := vault.Load(vaultDir)
+		if err != nil {
+			return err
+		}
+		return store.Build(ctx, notes)
+	}
+	if err := reindex(context.Background()); err != nil {
 		return err
 	}
-	slog.Info("indexed vault", "notes", len(notes), "dir", vaultDir)
+	slog.Info("indexed vault", "dir", vaultDir)
+
+	wr := writer.New(vaultDir, push, reindex)
 
 	root := http.NewServeMux()
-	mcpHandler := wikimcp.Handler(store)
+	mcpHandler := httpapi.RequireToken(token, wikimcp.Handler(store, wr))
 	root.Handle("/mcp", mcpHandler)
 	root.Handle("/mcp/", mcpHandler)
-	root.Handle("/", http.TimeoutHandler(httpapi.New(store), 15*time.Second, "request timeout"))
+	root.Handle("POST /reindex", httpapi.RequireToken(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := reindex(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})))
+	root.Handle("/", http.TimeoutHandler(httpapi.New(httpapi.Deps{Search: store, Write: wr, Token: token}), 15*time.Second, "request timeout"))
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -73,7 +89,7 @@ func run() error {
 
 	if os.Getenv("WIKI_MCP") == "stdio" {
 		slog.Info("mcp serving on stdio")
-		if err := wikimcp.New(store).Run(ctx, &sdkmcp.StdioTransport{}); err != nil {
+		if err := wikimcp.New(store, wr).Run(ctx, &sdkmcp.StdioTransport{}); err != nil {
 			slog.Error("mcp", "err", err)
 		}
 	} else {
