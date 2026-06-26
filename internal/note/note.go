@@ -58,3 +58,16 @@ func Parse(raw []byte) (Note, error) {
 	n.Body = string(body)
 	return n, nil
 }
+
+func Serialize(n Note) ([]byte, error) {
+	front, err := yaml.Marshal(n)
+	if err != nil {
+		return nil, fmt.Errorf("note: marshal: %w", err)
+	}
+	var b bytes.Buffer
+	b.WriteString("---\n")
+	b.Write(front)
+	b.WriteString("---\n")
+	b.WriteString(n.Body)
+	return b.Bytes(), nil
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/antonioisaacdias/llm-wiki/internal/httpapi"
 	"github.com/antonioisaacdias/llm-wiki/internal/note"
 )
 
@@ -24,12 +25,28 @@ func (f fakeSearcher) Get(_ context.Context, _ string) (note.Note, error) {
 	return f.note, f.err
 }
 
+type fakeWriter struct {
+	called bool
+	got    note.Note
+	err    error
+}
+
+func (f *fakeWriter) Upsert(_ context.Context, n note.Note) error {
+	f.called = true
+	f.got = n
+	return f.err
+}
+
 func connect(t *testing.T, s fakeSearcher) *mcp.ClientSession {
+	return connectWith(t, s, &fakeWriter{})
+}
+
+func connectWith(t *testing.T, s fakeSearcher, wr httpapi.Writer) *mcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	server := New(s)
+	server := New(s, wr)
 	if _, err := server.Connect(ctx, serverTransport, nil); err != nil {
 		t.Fatalf("server connect: %v", err)
 	}
@@ -55,10 +72,46 @@ func TestListTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		got[tool.Name] = true
 	}
-	for _, want := range []string{"search_wiki", "get_note"} {
+	for _, want := range []string{"search_wiki", "get_note", "upsert_note"} {
 		if !got[want] {
 			t.Errorf("missing tool %q; got %v", want, got)
 		}
+	}
+	if len(res.Tools) != 3 {
+		t.Errorf("want 3 tools, got %d", len(res.Tools))
+	}
+}
+
+func TestUpsertNote(t *testing.T) {
+	wr := &fakeWriter{}
+	session := connectWith(t, fakeSearcher{}, wr)
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "upsert_note",
+		Arguments: upsertInput{ID: "n1", Type: "fact"},
+	})
+	if err != nil {
+		t.Fatalf("call tool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %v", res.Content)
+	}
+
+	out, ok := res.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("structured content not an object: %T", res.StructuredContent)
+	}
+	if out["ok"] != true {
+		t.Errorf("want ok true, got %v", out["ok"])
+	}
+	if out["id"] != "n1" {
+		t.Errorf("want id n1, got %v", out["id"])
+	}
+	if !wr.called {
+		t.Error("writer was not invoked")
+	}
+	if wr.got.ID != "n1" || wr.got.Type != "fact" {
+		t.Errorf("writer got unexpected note: %+v", wr.got)
 	}
 }
 

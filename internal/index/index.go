@@ -6,12 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/antonioisaacdias/llm-wiki/internal/note"
 	_ "modernc.org/sqlite"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db *sql.DB
+	mu sync.RWMutex
+}
 
 func Open(dsn string) (*Store, error) {
 	db, err := sql.Open("sqlite", dsn)
@@ -33,6 +37,8 @@ CREATE VIRTUAL TABLE notes USING fts5(
 );`
 
 func (s *Store) Build(ctx context.Context, notes []note.Note) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("index: schema: %w", err)
 	}
@@ -62,6 +68,8 @@ func (s *Store) Build(ctx context.Context, notes []note.Note) error {
 }
 
 func (s *Store) Search(ctx context.Context, query string, limit int) ([]note.Stub, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	const q = `SELECT id, description, type,
 		bm25(notes, 0,0,0,0,0,0,0,0, 10.0, 5.0, 1.0) AS score
 		FROM notes WHERE notes MATCH ? AND status = 'active'
@@ -83,6 +91,8 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]note.Stu
 }
 
 func (s *Store) Get(ctx context.Context, id string) (note.Note, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	const q = `SELECT id,type,description,tags_raw,status,superseded_by,source,created,modified,body
 		FROM notes WHERE id = ? LIMIT 1`
 	var n note.Note
