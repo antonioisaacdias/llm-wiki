@@ -1,8 +1,10 @@
 package vault
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,9 @@ func Load(root string) ([]note.Note, error) {
 		}
 		n, err := note.Parse(raw)
 		if err != nil {
+			if !errors.Is(err, note.ErrNoFrontmatter) {
+				slog.Warn("vault: skipping malformed note", "path", path, "err", err)
+			}
 			return nil
 		}
 		notes = append(notes, n)

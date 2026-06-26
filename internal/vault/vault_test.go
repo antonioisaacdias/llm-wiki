@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func TestLoadSkipsMalformed(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "facts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	good := "---\nid: good\ntype: fact\ndescription: ok\n---\nbody"
+	bad := "---\nid: bad\ndescription: 'unterminated\n---\nbody"
+	if err := os.WriteFile(filepath.Join(dir, "facts/good.md"), []byte(good), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "facts/bad.md"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notes, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(notes) != 1 || notes[0].ID != "good" {
+		t.Fatalf("got %+v, want only good", notes)
+	}
+}
+
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	write := func(rel, content string) {
