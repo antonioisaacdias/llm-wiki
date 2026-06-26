@@ -24,6 +24,23 @@ func newTestStore(t *testing.T) *Store {
 	return s
 }
 
+func TestConcurrentBuildAndSearch(t *testing.T) {
+	s := newTestStore(t)
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 50; i++ {
+			s.Search(context.Background(), "vram", 8)
+		}
+		close(done)
+	}()
+	for i := 0; i < 50; i++ {
+		if err := s.Build(context.Background(), []note.Note{{ID: "x", Status: "active", Description: "vram"}}); err != nil {
+			t.Fatalf("Build: %v", err)
+		}
+	}
+	<-done
+}
+
 func TestSearchFindsActive(t *testing.T) {
 	s := newTestStore(t)
 	stubs, err := s.Search(context.Background(), "vram", 8)
