@@ -5,7 +5,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /wiki-service ./cmd/wiki-service
 
-FROM gcr.io/distroless/static-debian12
+FROM alpine:3.21
+RUN apk add --no-cache git ca-certificates
 COPY --from=build /wiki-service /wiki-service
 ENV WIKI_VAULT=/vault WIKI_HTTP_ADDR=:8080
 EXPOSE 8080
