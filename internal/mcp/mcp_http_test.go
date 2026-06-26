@@ -14,7 +14,7 @@ func connectHTTP(t *testing.T, s fakeSearcher) *mcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 
-	srv := httptest.NewServer(Handler(s))
+	srv := httptest.NewServer(Handler(s, &fakeWriter{}))
 	t.Cleanup(srv.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.0"}, nil)
@@ -38,7 +38,7 @@ func TestHTTPListTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		got[tool.Name] = true
 	}
-	for _, want := range []string{"search_wiki", "get_note"} {
+	for _, want := range []string{"search_wiki", "get_note", "upsert_note"} {
 		if !got[want] {
 			t.Errorf("missing tool %q; got %v", want, got)
 		}
