@@ -30,3 +30,7 @@ func Commit(ctx context.Context, dir, msg string) error {
 func Push(ctx context.Context, dir string) error {
 	return git(ctx, dir, "push")
 }
+
+func Pull(ctx context.Context, dir string) error {
+	return git(ctx, dir, "pull", "--ff-only")
+}

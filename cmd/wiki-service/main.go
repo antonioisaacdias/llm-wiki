@@ -12,6 +12,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/antonioisaacdias/llm-wiki/internal/gitrepo"
 	"github.com/antonioisaacdias/llm-wiki/internal/httpapi"
 	"github.com/antonioisaacdias/llm-wiki/internal/index"
 	wikimcp "github.com/antonioisaacdias/llm-wiki/internal/mcp"
@@ -61,6 +62,11 @@ func run() error {
 	root.Handle("/mcp", mcpHandler)
 	root.Handle("/mcp/", mcpHandler)
 	root.Handle("POST /reindex", httpapi.RequireToken(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if push {
+			if err := gitrepo.Pull(r.Context(), vaultDir); err != nil {
+				slog.Warn("reindex: git pull failed, reindexing from disk", "err", err)
+			}
+		}
 		if err := reindex(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
