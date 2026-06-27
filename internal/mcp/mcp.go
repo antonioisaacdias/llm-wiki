@@ -8,6 +8,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/antonioisaacdias/llm-wiki/internal/httpapi"
+	"github.com/antonioisaacdias/llm-wiki/internal/lint"
 	"github.com/antonioisaacdias/llm-wiki/internal/note"
 )
 
@@ -39,7 +40,9 @@ type upsertOutput struct {
 	ID string `json:"id"`
 }
 
-func New(s httpapi.Searcher, wr httpapi.Writer) *mcp.Server {
+type lintInput struct{}
+
+func New(s httpapi.Searcher, wr httpapi.Writer, l httpapi.Lister) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "llm-wiki", Version: "0.1.0"}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -57,11 +60,16 @@ func New(s httpapi.Searcher, wr httpapi.Writer) *mcp.Server {
 		Description: "Create or update a wiki note. Requires id and type.",
 	}, upsertHandler(wr))
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "lint_wiki",
+		Description: "Report broken links and orphan notes across the wiki graph.",
+	}, lintHandler(l))
+
 	return server
 }
 
-func Handler(s httpapi.Searcher, wr httpapi.Writer) http.Handler {
-	server := New(s, wr)
+func Handler(s httpapi.Searcher, wr httpapi.Writer, l httpapi.Lister) http.Handler {
+	server := New(s, wr, l)
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
 	}, nil)
@@ -84,6 +92,16 @@ func getHandler(s httpapi.Searcher) mcp.ToolHandlerFor[getInput, note.Note] {
 			return nil, note.Note{}, fmt.Errorf("get_note %q: %w", in.ID, err)
 		}
 		return nil, n, nil
+	}
+}
+
+func lintHandler(l httpapi.Lister) mcp.ToolHandlerFor[lintInput, lint.Report] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ lintInput) (*mcp.CallToolResult, lint.Report, error) {
+		notes, err := l.All(ctx)
+		if err != nil {
+			return nil, lint.Report{}, fmt.Errorf("lint_wiki: %w", err)
+		}
+		return nil, lint.Build(notes), nil
 	}
 }
 

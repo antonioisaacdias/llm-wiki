@@ -58,7 +58,7 @@ func run() error {
 	wr := writer.New(vaultDir, push, reindex)
 
 	root := http.NewServeMux()
-	mcpHandler := httpapi.RequireToken(token, wikimcp.Handler(store, wr))
+	mcpHandler := httpapi.RequireToken(token, wikimcp.Handler(store, wr, store))
 	root.Handle("/mcp", mcpHandler)
 	root.Handle("/mcp/", mcpHandler)
 	root.Handle("POST /reindex", httpapi.RequireToken(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func run() error {
 		}
 		w.WriteHeader(http.StatusOK)
 	})))
-	root.Handle("/", http.TimeoutHandler(httpapi.New(httpapi.Deps{Search: store, Write: wr, Token: token}), 15*time.Second, "request timeout"))
+	root.Handle("/", http.TimeoutHandler(httpapi.New(httpapi.Deps{Search: store, Write: wr, List: store, Token: token}), 15*time.Second, "request timeout"))
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -95,7 +95,7 @@ func run() error {
 
 	if os.Getenv("WIKI_MCP") == "stdio" {
 		slog.Info("mcp serving on stdio")
-		if err := wikimcp.New(store, wr).Run(ctx, &sdkmcp.StdioTransport{}); err != nil {
+		if err := wikimcp.New(store, wr, store).Run(ctx, &sdkmcp.StdioTransport{}); err != nil {
 			slog.Error("mcp", "err", err)
 		}
 	} else {

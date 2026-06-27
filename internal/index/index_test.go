@@ -74,6 +74,24 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestAll(t *testing.T) {
+	s := newTestStore(t)
+	notes, err := s.All(context.Background())
+	if err != nil {
+		t.Fatalf("All: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("got %d notes, want 2", len(notes))
+	}
+	got := map[string]string{}
+	for _, n := range notes {
+		got[n.ID] = n.Body
+	}
+	if got["vram-cliff"] != "penhasco de vram" || got["old-fact"] != "descontinuado" {
+		t.Fatalf("unexpected notes: %v", got)
+	}
+}
+
 func TestGetMissing(t *testing.T) {
 	s := newTestStore(t)
 	_, err := s.Get(context.Background(), "nope")

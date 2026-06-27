@@ -14,6 +14,7 @@ import (
 type fakeSearcher struct {
 	stubs []note.Stub
 	note  note.Note
+	all   []note.Note
 	err   error
 }
 
@@ -23,6 +24,10 @@ func (f fakeSearcher) Search(_ context.Context, _ string, _ int) ([]note.Stub, e
 
 func (f fakeSearcher) Get(_ context.Context, _ string) (note.Note, error) {
 	return f.note, f.err
+}
+
+func (f fakeSearcher) All(_ context.Context) ([]note.Note, error) {
+	return f.all, f.err
 }
 
 type fakeWriter struct {
@@ -46,7 +51,7 @@ func connectWith(t *testing.T, s fakeSearcher, wr httpapi.Writer) *mcp.ClientSes
 	ctx := context.Background()
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	server := New(s, wr)
+	server := New(s, wr, s)
 	if _, err := server.Connect(ctx, serverTransport, nil); err != nil {
 		t.Fatalf("server connect: %v", err)
 	}
@@ -72,13 +77,43 @@ func TestListTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		got[tool.Name] = true
 	}
-	for _, want := range []string{"search_wiki", "get_note", "upsert_note"} {
+	for _, want := range []string{"search_wiki", "get_note", "upsert_note", "lint_wiki"} {
 		if !got[want] {
 			t.Errorf("missing tool %q; got %v", want, got)
 		}
 	}
-	if len(res.Tools) != 3 {
-		t.Errorf("want 3 tools, got %d", len(res.Tools))
+	if len(res.Tools) != 4 {
+		t.Errorf("want 4 tools, got %d", len(res.Tools))
+	}
+}
+
+func TestLintWiki(t *testing.T) {
+	s := fakeSearcher{all: []note.Note{
+		{ID: "a", Body: "see [[b]] and [[ghost]]"},
+		{ID: "b", Body: "back to [[a]]"},
+	}}
+	session := connect(t, s)
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "lint_wiki",
+		Arguments: lintInput{},
+	})
+	if err != nil {
+		t.Fatalf("call tool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %v", res.Content)
+	}
+	out, ok := res.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("structured content not an object: %T", res.StructuredContent)
+	}
+	if out["notes"].(float64) != 2 {
+		t.Errorf("notes = %v, want 2", out["notes"])
+	}
+	broken, ok := out["broken_links"].([]any)
+	if !ok || len(broken) != 1 {
+		t.Fatalf("broken_links = %v, want 1", out["broken_links"])
 	}
 }
 

@@ -90,6 +90,32 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]note.Stu
 	return out, rows.Err()
 }
 
+func (s *Store) All(ctx context.Context) ([]note.Note, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	const q = `SELECT id,type,description,tags_raw,status,superseded_by,source,created,modified,body
+		FROM notes`
+	rows, err := s.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("index: all: %w", err)
+	}
+	defer rows.Close()
+	var out []note.Note
+	for rows.Next() {
+		var n note.Note
+		var tags string
+		if err := rows.Scan(&n.ID, &n.Type, &n.Description, &tags, &n.Status,
+			&n.SupersededBy, &n.Source, &n.Created, &n.Modified, &n.Body); err != nil {
+			return nil, fmt.Errorf("index: scan: %w", err)
+		}
+		if tags != "" {
+			n.Tags = strings.Fields(tags)
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) Get(ctx context.Context, id string) (note.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

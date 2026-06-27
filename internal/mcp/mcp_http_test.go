@@ -14,7 +14,7 @@ func connectHTTP(t *testing.T, s fakeSearcher) *mcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 
-	srv := httptest.NewServer(Handler(s, &fakeWriter{}))
+	srv := httptest.NewServer(Handler(s, &fakeWriter{}, s))
 	t.Cleanup(srv.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0.0.0"}, nil)

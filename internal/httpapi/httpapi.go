@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/antonioisaacdias/llm-wiki/internal/lint"
 	"github.com/antonioisaacdias/llm-wiki/internal/note"
 )
 
@@ -17,9 +18,14 @@ type Writer interface {
 	Upsert(ctx context.Context, n note.Note) error
 }
 
+type Lister interface {
+	All(ctx context.Context) ([]note.Note, error)
+}
+
 type Deps struct {
 	Search Searcher
 	Write  Writer
+	List   Lister
 	Token  string
 }
 
@@ -29,6 +35,7 @@ func New(d Deps) http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.Handle("GET /search", searchHandler(d.Search))
+	mux.Handle("GET /lint", lintHandler(d.List))
 	mux.Handle("GET /note/{id}", getHandler(d.Search))
 	mux.Handle("POST /note", RequireToken(d.Token, postNote(d.Write)))
 	return mux
@@ -47,6 +54,17 @@ func searchHandler(s Searcher) http.Handler {
 			return
 		}
 		writeJSON(w, stubs)
+	})
+}
+
+func lintHandler(l Lister) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		notes, err := l.All(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, lint.Build(notes))
 	})
 }
 

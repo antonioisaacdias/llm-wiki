@@ -60,13 +60,16 @@ Search ranks `description` and `tags` above the body (BM25), and returns only `a
 |---|---|---|
 | `GET /search?q=` | open | ranked note stubs (`id`, `description`, `type`, `score`) |
 | `GET /note/{id}` | open | full note as JSON |
+| `GET /lint` | open | graph report: broken links, orphans, counts |
 | `GET /healthz` | open | liveness |
 | `POST /note` | bearer | create/update a note (JSON body) |
 | `POST /reindex` | bearer | `git pull` + rebuild the index (webhook target) |
 | `/mcp` | bearer | MCP over streamable HTTP |
 
-**MCP tools:** `search_wiki`, `get_note`, `upsert_note`. Also available over stdio
-(`WIKI_MCP=stdio`).
+**MCP tools:** `search_wiki`, `get_note`, `upsert_note`, `lint_wiki`. Also available
+over stdio (`WIKI_MCP=stdio`).
+
+Note schema, enums, slug and linking rules live in [`CONVENTIONS.md`](CONVENTIONS.md).
 
 ## Configuration (env)
 

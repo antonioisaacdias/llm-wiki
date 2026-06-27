@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -29,6 +31,68 @@ type Stub struct {
 }
 
 var ErrNoFrontmatter = errors.New("note: missing frontmatter")
+
+var (
+	Types    = []string{"fact", "reference", "decision", "procedure"}
+	Statuses = []string{"active", "superseded"}
+)
+
+const (
+	StatusActive     = "active"
+	StatusSuperseded = "superseded"
+)
+
+var (
+	slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	linkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+)
+
+func Validate(n Note) error {
+	if !slugRe.MatchString(n.ID) {
+		return fmt.Errorf("note: invalid id %q: must be a slug matching %s", n.ID, slugRe.String())
+	}
+	if !contains(Types, n.Type) {
+		return fmt.Errorf("note: invalid type %q: must be one of %v", n.Type, Types)
+	}
+	status := n.Status
+	if status == "" {
+		status = StatusActive
+	}
+	if !contains(Statuses, status) {
+		return fmt.Errorf("note: invalid status %q: must be one of %v", status, Statuses)
+	}
+	if status == StatusSuperseded && n.SupersededBy == "" {
+		return fmt.Errorf("note: status superseded requires superseded_by")
+	}
+	if status == StatusActive && n.SupersededBy != "" {
+		return fmt.Errorf("note: status active must not set superseded_by")
+	}
+	return nil
+}
+
+func Links(body string) []string {
+	matches := linkRe.FindAllStringSubmatch(body, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
+		target := strings.TrimSpace(m[1])
+		if i := strings.IndexByte(target, '|'); i >= 0 {
+			target = strings.TrimSpace(target[:i])
+		}
+		if target != "" {
+			out = append(out, target)
+		}
+	}
+	return out
+}
+
+func contains(set []string, v string) bool {
+	for _, s := range set {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
 
 var sep = []byte("---")
 
